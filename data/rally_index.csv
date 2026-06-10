@@ -1,0 +1,7 @@
+rally_id,match_id,gender,start_f,end_f,scorer
+r0001,example_match,men,120,420,A
+r0002,example_match,men,500,760,B
+r0003,example_match,men,820,1180,A
+r0004,example_match2,women,100,360,A
+r0005,example_match2,women,440,700,B
+r0006,example_match2,women,780,1120,A

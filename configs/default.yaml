@@ -1,0 +1,129 @@
+# =============================================================================
+# BadmintonVision - default configuration
+# All hyper-parameters are taken from the paper (Methods, Sections 2.1-2.10).
+# Override any field on the command line, e.g.:
+#   python scripts/03_train_detector.py --config configs/default.yaml \
+#          detection.epochs=150 detection.batch_size=16
+# =============================================================================
+
+project:
+  name: BadmintonVision
+  seed: 42                       # global random seed for reproducibility
+  device: cuda                   # cuda | cpu
+  num_workers: 8
+
+# -----------------------------------------------------------------------------
+# Paths (edit these to point at your local copies)
+# -----------------------------------------------------------------------------
+paths:
+  raw_videos: data/raw_videos            # broadcast .mp4 files, one per match
+  frames: data/frames                    # extracted frames
+  annotations: data/annotations          # YOLO-format labels (.txt) + classes.txt
+  rally_index: data/rally_index.csv      # rally_id, match_id, gender, start_f, end_f, scorer
+  splits: data/splits                    # match-level train/val/test json
+  weights: weights                       # model checkpoints
+  outputs: outputs                       # analysis results + figures
+  court_keypoints: court_keypoints       # per-match court reference points
+
+# -----------------------------------------------------------------------------
+# Object-detection classes (Section 2.2). Order defines the label index.
+# -----------------------------------------------------------------------------
+classes:
+  - Player          # 0
+  - Forehand        # 1
+  - Backhand        # 2
+  - Serve           # 3
+  - Jump_Smash      # 4
+
+# -----------------------------------------------------------------------------
+# Frame extraction & quality filtering (Section 2.2)
+# -----------------------------------------------------------------------------
+frames:
+  stride: 10                     # extract one frame every N frames
+  laplacian_threshold: 100.0     # variance-of-Laplacian blur filter
+  image_size: 1280               # long side used for detection
+
+# -----------------------------------------------------------------------------
+# Data splitting (Section 2.4.1 / leakage control)
+# IMPORTANT: splitting is performed at the MATCH level so that no frame, rally
+# clip or temporal window from a given match appears in more than one split.
+# -----------------------------------------------------------------------------
+split:
+  unit: match                    # match | rally | frame  (use 'match'!)
+  train: 0.70
+  val: 0.15
+  test: 0.15
+  stratify_by: [gender]          # keep men/women balanced across splits
+
+# -----------------------------------------------------------------------------
+# Self-supervised pre-training (Section 2.3)
+# 139,501 unlabeled images, AdamW, lr 1e-4, wd 0.05, batch 256, 200 epochs.
+# -----------------------------------------------------------------------------
+ssl:
+  method: convnextv2_mae         # convnextv2_mae | simsiam
+  backbone: convnextv2_tiny
+  mask_ratio: 0.75               # MAE masking ratio (ConvNeXt V2)
+  epochs: 200
+  batch_size: 256
+  optimizer: adamw
+  lr: 1.0e-4
+  weight_decay: 0.05
+  warmup_epochs: 10
+  image_size: 224
+  proj_dim: 2048                 # SimSiam projector/predictor dim
+
+# -----------------------------------------------------------------------------
+# Detector (Section 2.2 / 2.9). YOLOv12m backbone is *augmented* with the
+# SSL-pretrained ConvNeXt V2 weights (feature fusion, not replacement).
+# -----------------------------------------------------------------------------
+detection:
+  model: yolov12m
+  ssl_init: true                 # initialise backbone from SSL weights
+  epochs: 100
+  batch_size: 16
+  imgsz: 1280
+  optimizer: auto
+  conf_threshold: 0.25           # inference confidence threshold
+  nms_iou: 0.70                  # inference NMS IoU threshold
+  iou_eval: 0.50                 # IoU for AP@0.5
+
+# -----------------------------------------------------------------------------
+# Temporal recognition - MotionFormer (Section 2.5)
+# 10-frame windows at 25 fps (= 400 ms) covering a full stroke cycle.
+# -----------------------------------------------------------------------------
+temporal:
+  window: 10                     # frames per window
+  fps: 25                        # broadcast frame rate -> 10 frames = 400 ms
+  stride: 5                      # window stride during training
+  d_model: 256
+  n_heads: 8
+  n_layers: 4
+  mlp_ratio: 4
+  dropout: 0.1
+  epochs: 80
+  batch_size: 64
+  lr: 3.0e-4
+  weight_decay: 0.05
+  freeze_backbone: true          # operate on frozen SSL detection features
+
+# -----------------------------------------------------------------------------
+# Tactical analysis (Sections 2.6-2.8)
+# -----------------------------------------------------------------------------
+tactical:
+  # Court geometry (BWF singles). The modelled region is one half-court.
+  court_length_half_m: 6.70      # net-to-baseline (half court)
+  court_width_singles_m: 5.18    # singles width (NOT 6.10, which is doubles)
+  homography_per_match: true     # estimate H separately for each match
+  savgol_window: 5               # Savitzky-Golay smoothing window
+  savgol_polyorder: 2
+  direction_change_angle_deg: 90 # threshold for a "direction change"
+  markov_states: [Forehand, Backhand, Jump_Smash]
+  lag: 1                         # lag for sequential adjusted residuals
+
+# -----------------------------------------------------------------------------
+# Statistics (Section 2.10)
+# -----------------------------------------------------------------------------
+stats:
+  alpha: 0.05
+  mixed_effects_group: game      # random intercept grouping variable
+  bootstrap_n: 10000             # for optional bootstrap CIs

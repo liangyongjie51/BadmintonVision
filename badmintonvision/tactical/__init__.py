@@ -1,0 +1,1 @@
+"""BadmintonVision.tactical subpackage."""

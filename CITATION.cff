@@ -1,0 +1,12 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the associated paper."
+title: "BadmintonVision: A Deep Learning Framework for Automated Tactical Analysis in Elite Badminton"
+authors:
+  - family-names: Liang
+    given-names: Yongjie
+  - family-names: Zhou
+    given-names: Yajun
+  - family-names: Zhang
+    given-names: Gang
+version: 1.0.0
+license: MIT
